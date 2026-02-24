@@ -12,5 +12,5 @@ __all__ = [posts_router, category_router, tag_router, users_router, auth_router]
 
 
 from .schemas import *  # noqa
-from .auth import *  # noqa
-from .common import *  # noqa
+from .routers.auth import *  # noqa
+from .routers.common import *  # noqa

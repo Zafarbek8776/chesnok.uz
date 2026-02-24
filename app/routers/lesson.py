@@ -1,10 +1,14 @@
 from typing import Annotated
+from pathlib import Path
+import shutil
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Form, UploadFile
 from sqlalchemy import select
 
 from app.database import db_dep
-from app.models import User
+from app.config import settings
+from app.models import User, Media
+from app.exceptions import AbrorSleepyException
 
 
 router = APIRouter(prefix="/lesson", tags=["Lesson"])
@@ -53,6 +57,48 @@ async def protected_admin(
         raise HTTPException(status_code=403, detail="San mani adminimmassan karochi!")
 
     return user
+
+
+@router.post ("/testlogin")
+async def test_login(
+    username: Annotated[str, Form()], password: Annotated[str, Form()]
+):
+    return {"username": username, "password": password}
+
+
+@router.post("/uploadfile/")
+async def create_upload_file(file: UploadFile, db: db_dep):
+    if file.size > 1024 * 1024 * 1:
+        raise HTTPException(
+            status_code=400, detail="File size is too large. Max size is 1MB."
+            
+        )
+    file_ext = Path(file.filename). suffix.lower()  # image.png
+    if file_ext not in [". jpg", ".png", ".jpeg"]:
+        raise HTTPException(
+            status_code=400, 
+            detail="File type is not supported. Only .jpg, .png, .jpeg are allowed.", 
+        )
+    path = Path(settings.Media_Path)
+    path.mkdir(exist_ok=True)
+    res = path / file.filename  # chesnokuz/media/filename.jpg
+    with open(res, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+        image = Media(url=f"{settings.Media_Path}/{file.filename}")
+        db.add(image)
+        db.commit()
+        db.refresh(image)
+
+        return {"media_id": image.id, "url": f"{settings.BASE_URL}/{image.url}"}
+    
+
+    @router.get("/exc")
+    async def test_exception():
+        raise AbrorSleepyException("Why are you sleeping?")
+    
+
+    
 
 
 """
