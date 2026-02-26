@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     SESSION_ID_EXPIRE_DAYS: int = 1
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
-    # SECRET_KEY: str
+    SECRET_KEY: str
 
     DB_USER: str
     DB_PASSWORD: str
@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
 
     # Email settings
-    EMAIL_ADDRESS: str = "zrajabboyev93@gmail.com"
+    EMAIL_ADDRESS: str = "voidpointer07@gmail.com"
     SMTP_SERVER: str = "smtp.gmail.com"
     SMTP_PORT: int = 587
     EMAIL_PASSWORD: str

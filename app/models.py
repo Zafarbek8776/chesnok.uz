@@ -1,3 +1,4 @@
+from sqlalchemy.orm import relationship
 from datetime import datetime
 
 from sqlalchemy import (
@@ -12,7 +13,7 @@ from sqlalchemy import (
     Table,
     Column,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
 
@@ -46,13 +47,18 @@ class User(BaseModel):
     is_staff: Mapped[bool] = mapped_column(Boolean, default=False)
     is_superuser: Mapped[bool] = mapped_column(Boolean, default=False)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+    deleted_email: Mapped[str] = mapped_column(String(50), nullable=True)
 
+    posts: Mapped[list["Post"]] = relationship(
+        back_populates="user", lazy="raise_on_sql"
+    )
     profession: Mapped["Profession"] = relationship(
         back_populates="users", lazy="raise_on_sql"
     )
-    user_session: Mapped[list["UserSessionToken"]]= relationship(
+    user_sessions: Mapped[list["UserSessionToken"]] = relationship(
         back_populates="user", lazy="raise_on_sql"
     )
+
     def __repr__(self):
         return f"User({self.first_name} {self.last_name})"
 
@@ -71,13 +77,16 @@ class Post(BaseModel):
     mins_read: Mapped[int] = mapped_column(BigInteger, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
+    user: Mapped["User"] = relationship(back_populates="posts")
+    category: Mapped["Category"] = relationship(back_populates="posts")
     tags: Mapped[list["Tag"]] = relationship(
-        "Tag",
+        secondary="post_tag",
         back_populates="posts",
+        lazy="raise_on_sql",
     )
 
     def __repr__(self):
-        return f"Post({self.title})"
+        return {self.title}
 
 
 class Category(Base):
@@ -86,6 +95,10 @@ class Category(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     name: Mapped[str] = mapped_column(String(50))
     slug: Mapped[str] = mapped_column(String(100), unique=True)
+
+    posts: Mapped[list["Post"]] = relationship(
+        back_populates="category", lazy="raise_on_sql"
+    )
 
     def __repr__(self):
         return f"Category({self.name})"
@@ -99,8 +112,7 @@ class Tag(Base):
     slug: Mapped[str] = mapped_column(String(100), unique=True)
 
     posts: Mapped[list["Post"]] = relationship(
-        "Post",
-        back_populates="tags",
+        secondary="post_tag", back_populates="tags", lazy="raise_on_sql"
     )
 
     def __repr__(self):
@@ -113,7 +125,9 @@ class Profession(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     name: Mapped[str] = mapped_column(String(50))
 
-    users: Mapped[list["User"]] = relationship("User", back_populates="profession")
+    users: Mapped[list["User"]] = relationship(
+        back_populates="profession", lazy="raise_on_sql"
+    )
 
     def __repr__(self):
         return f"Profession({self.name})"
@@ -148,21 +162,20 @@ class Comment(BaseModel):
         return f"Comment({self.text})"
 
 
-class UsersSearch(Base):
-    __tablename__ = "users_search"
+class UserSearch(Base):
+    __tablename__ = "user_searches"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     term: Mapped[str] = mapped_column(String(50), nullable=False)
     count: Mapped[int] = mapped_column(Integer, default=0)
 
     def __repr__(self):
-        return f"UsersSearch({self.term})"
+        return f"UserSearch({self.term})"
 
 
-class Device(Base):
+class Device(BaseModel):
     __tablename__ = "devices"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     user_agent: Mapped[str] = mapped_column(String(255), nullable=False)
     last_active: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
@@ -172,30 +185,10 @@ class Device(Base):
         return f"Device({self.user_agent})"
 
 
-class Like(Base):
-    __tablename__ = "likes"
+class UserSessionToken(Base):
+    __tablename__ = "user_sessions"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    device_id: Mapped[int] = mapped_column(ForeignKey("devices.id"), nullable=False)
-    post_id: Mapped[int] = mapped_column(ForeignKey("post.id"), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=func.now()
-    )
-
-    def __repr__(self):
-        return f"Like({self.id})"
-
-
-post_tag_m2_table = Table(
-    "post_tag",
-    Base.metadata,
-    Column("post_id", ForeignKey("post.id"), primary_key=True),
-    Column("tag_id", ForeignKey("tags.id"), primary_key=True),
-)
-
-class UserSessionToken(BaseModel):
-    __tablename__="user_sessions"
-    id: Mapped[int] = mapped_column(BigInteger,primary_key=True)
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"))
     token: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -207,3 +200,25 @@ class UserSessionToken(BaseModel):
 
     def __str__(self):
         return self.user_id
+
+
+class Like(Base):
+    __tablename__ = "likes"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    post_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("post.id"))
+    device_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("devices.id"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now()
+    )
+
+    def __repr__(self):
+        return f"Like({self.id})"
+
+
+post_tag_m2m_table = Table(
+    "post_tag",
+    Base.metadata,
+    Column("post_id", BigInteger, ForeignKey("post.id"), primary_key=True),
+    Column("tag_id", BigInteger, ForeignKey("tags.id"), primary_key=True),
+)

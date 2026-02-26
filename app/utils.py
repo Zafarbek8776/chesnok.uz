@@ -1,15 +1,10 @@
-"""
-
-def generate_slug(title):
-    return title.lower().replace(" ", "-")
-
-    """
-
-from fastapi import HTTPException
-
-from passlib.context import CryptContext
+import redis
+import smtplib
+from email.mime.text import MIMEText
 from datetime import datetime, timedelta, timezone
 
+from fastapi import HTTPException
+from passlib.context import CryptContext
 from jose import jwt, JWTError
 
 from app.config import settings
@@ -36,7 +31,8 @@ def generate_jwt_tokens(user_id: int, is_access_only: bool = False):
         key=settings.SECRET_KEY,
         claims={
             "sub": str(user_id),
-            "exp": datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+            "exp": datetime.now(timezone.utc)
+            + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
         },
     )
 
@@ -48,7 +44,8 @@ def generate_jwt_tokens(user_id: int, is_access_only: bool = False):
         key=settings.SECRET_KEY,
         claims={
             "sub": str(user_id),
-            "exp": datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+            "exp": datetime.now(timezone.utc)
+            + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
         },
     )
 
@@ -57,7 +54,25 @@ def generate_jwt_tokens(user_id: int, is_access_only: bool = False):
 
 def decode_jwt_token(token: str):
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )
         return payload
     except JWTError as e:
         raise HTTPException(status_code=401, detail=f"Invalid token: {e}")
+
+
+def send_email(to_email: str, subject: str, body: str):
+    msg = MIMEText(body)
+    msg["Subject"] = subject
+    msg["Body"] = body
+    msg["From"] = settings.EMAIL_ADDRESS
+    msg["To"] = to_email
+
+    with smtplib.SMTP(settings.SMTP_SERVER, settings.SMTP_PORT) as server:
+        server.starttls()
+        server.login(settings.EMAIL_ADDRESS, settings.EMAIL_PASSWORD)
+        server.send_message(msg)
+
+
+redis_client = redis.from_url(settings.REDIS_URL)
