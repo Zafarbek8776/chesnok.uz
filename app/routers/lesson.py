@@ -1,8 +1,10 @@
 from typing import Annotated
 from pathlib import Path
 import shutil
+import asyncio
 
-from fastapi import APIRouter, Header, HTTPException, Form, UploadFile
+from fastapi import APIRouter, Header, HTTPException, Form, UploadFile, WebSocket
+from fastapi.responses import HTMLResponse
 from sqlalchemy import select
 
 from app.database import db_dep
@@ -96,3 +98,18 @@ async def create_upload_file(file: UploadFile, db: db_dep):
 @router.get("/exc/")
 async def test_exception():
     raise AnasbekSleepyException("Why are you sleeping?")
+
+@router.get("/htmlres/", response_class=HTMLResponse)
+async def html_resp():
+    return "<h1>HTML Responses</h1>"
+
+
+@router.websocket("/ws/")
+async def test_ws(ws: WebSocket):
+    await ws.accept()
+
+    while True:
+        await ws.send_text("Abror!")
+        await asyncio.sleep(1)
+        
+    

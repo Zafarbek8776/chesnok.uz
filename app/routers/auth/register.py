@@ -10,7 +10,8 @@ from app.schemas import (
     UserRegisterRequest,
     UserRegisterResponse,
 )
-from app.utils import hash_password, send_email, redis_client
+from app.utils import hash_password, redis_client
+from app.celery import send_email_celery
 
 router = APIRouter(prefix="/register", tags=["Auth"])
 
@@ -28,23 +29,22 @@ async def register_user(db: db_dep, data: UserRegisterRequest):
     )
 
     secret_code = secrets.token_hex(16)
-    
-    sent_email(
-        data.email, "Email confirmation",  f"Your confirmation code is  {secret_code}"
+    send_email_celery.delay(
+        data.email, "Email confirmation", f"Your confirmation code is {secret_code}"
     )
-    redis_client.setex(secret_code, 120, user.email)  # 5678  : email
+    redis_client.setex(secret_code, 120, user.email)  # 5678 : email
 
     stmt = select(User)
-    existing_user = db.execute(stmt). scalars(). first()
+    existing_user = db.execute(stmt).scalars().first()
 
     if not existing_user:
+        user.is_active = True
         user.is_staff = True
         user.is_superuser = True
-        user.is_active = True
 
     db.add(user)
     db.commit()
-    
+
     return JSONResponse(
         status_code=201, content={"message": "Email confirmation sent to your email."}
     )
@@ -56,19 +56,17 @@ async def verify_register(db: db_dep, secret_code: str):
     print(email.decode("utf-8"))
 
     if not email:
-        raise HTTPException(status_code=400,  detail="Invalid code")
-    
-    stmt = select(User).where (User.email == email.decode("utf-8"))
-    user = db.execute(stmt).scalars(). first()
+        raise HTTPException(status_code=400, detail="Invalid code")
+
+    stmt = select(User).where(User.email == email.decode("utf-8"))
+    user = db.execute(stmt).scalars().first()
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    
+
     user.is_active = True
     db.commit()
 
     return JSONResponse(
         status_code=200, content={"message": "User registered successfully"}
     )
-
-    
